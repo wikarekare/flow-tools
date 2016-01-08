@@ -77,15 +77,17 @@ int format21(struct ftio *ftio, int options);
 int format22(struct ftio *ftio, int options);
 int format23(struct ftio *ftio, int options);
 int format24(struct ftio *ftio, int options);
+int format25(struct ftio *ftio, int options); /*New format for Wikarekare*/
+int format26(struct ftio *ftio, int options); /*New format for Wikarekare*/
 
 struct jump format[] = {{format0}, {format1}, {format2},
           {format3}, {format4}, {format5}, {format6}, {format7},
           {format8}, {format9}, {format10}, {format11}, {format12},
           {format13}, {format14}, {format15}, {format16}, {format17},
           {format18}, {format19}, {format20}, {format21}, {format22},
-          {format23}, {format24}};
+          {format23}, {format24}, {format25}, {format26} };  /*New forma25 and format26 for Wikarekare*/
 
-#define NFORMATS 25
+#define NFORMATS 27  /*Incremented for two new formats for Wikarekare*/
 
 void usage(void);
 
@@ -2287,4 +2289,216 @@ void usage(void) {
   fprintf(stderr, "Usage: flow-print [-hlnpw] [-d debug_level] [-f format]\n");
 
 } /* usage */
+
+/*
+ * function: format25
+ *
+ * 1 line summary per record, with comment line at head of output
+ *Format: Tab separated
+ *    Start End Sif SrcIPaddress SrcPort DIf DstIPaddress DstPort Protocol Flags tos Pkts Octets sAS dAS
+ *Start and End dates in YYYY-MM-DD HH:MM:SS.ms
+ */
+int format25(struct ftio *ftio, int options)
+{
+  struct tm *tm;
+  struct fttime ftt;
+  struct fts3rec_all cur;
+  struct fts3rec_offsets fo;
+  struct ftver ftv;
+  char fmt_buf1[64], fmt_buf2[64];
+  char *rec;
+  time_t time_ftt;
+
+  if (ftio_check_xfield(ftio, FT_XFIELD_DPKTS |
+    FT_XFIELD_DOCTETS | FT_XFIELD_FIRST | FT_XFIELD_LAST | FT_XFIELD_INPUT |
+    FT_XFIELD_OUTPUT | FT_XFIELD_SRCADDR | FT_XFIELD_DSTADDR |
+    FT_XFIELD_SRCPORT | FT_XFIELD_DSTPORT | FT_XFIELD_UNIX_SECS |
+    FT_XFIELD_UNIX_NSECS | FT_XFIELD_SYSUPTIME | FT_XFIELD_TCP_FLAGS |
+    FT_XFIELD_TOS| FT_XFIELD_PROT | FT_XFIELD_SRC_AS | FT_XFIELD_DST_AS)) {
+    fterr_warnx("Flow record missing required field for format.");
+    return -1;
+  }
+
+  ftio_get_ver(ftio, &ftv);
+  
+  fts3rec_compute_offsets(&fo, &ftv);
+
+  puts("#Start\tEnd\tSif\tSrcIPaddress\tSrcP\tDIf\tDstIPaddress\tDstP\tP\tFl\ttos\tPkts\tOctets\tsaa\tdaa");
+
+  while ((rec = ftio_read(ftio))) {
+
+    cur.unix_secs = ((uint32_t*)(rec+fo.unix_secs));
+    cur.unix_nsecs = ((uint32_t*)(rec+fo.unix_nsecs));
+    cur.sysUpTime = ((uint32_t*)(rec+fo.sysUpTime));
+    cur.dOctets = ((uint32_t*)(rec+fo.dOctets));
+    cur.dPkts = ((uint32_t*)(rec+fo.dPkts));
+    cur.First = ((uint32_t*)(rec+fo.First));
+    cur.Last = ((uint32_t*)(rec+fo.Last));
+    cur.srcaddr = ((uint32_t*)(rec+fo.srcaddr));
+    cur.dstaddr = ((uint32_t*)(rec+fo.dstaddr));
+    cur.input = ((uint16_t*)(rec+fo.input));
+    cur.output = ((uint16_t*)(rec+fo.output));
+    cur.srcport = ((uint16_t*)(rec+fo.srcport));
+    cur.dstport = ((uint16_t*)(rec+fo.dstport));
+    cur.prot = ((uint8_t*)(rec+fo.prot));
+    cur.tcp_flags = ((uint8_t*)(rec+fo.tcp_flags));
+    cur.tos = ((uint8_t*)(rec+fo.tos));
+    cur.src_as = ((uint16_t*)(rec+fo.src_as));
+    cur.dst_as = ((uint16_t*)(rec+fo.dst_as));
+
+
+    ftt = ftltime(*cur.sysUpTime, *cur.unix_secs, *cur.unix_nsecs, *cur.First);
+    time_ftt = ftt.secs;
+    tm = localtime(&time_ftt);
+
+    printf("%-4.4d-%-2.2d-%-2.2d %-2.2d:%-2.2d:%-2.2d.%-3.3lu\t",
+      (int)tm->tm_year + 1900, (int)tm->tm_mon+1, (int)tm->tm_mday, (int)tm->tm_hour,
+      (int)tm->tm_min, (int)tm->tm_sec, (u_long)ftt.msecs);
+
+    ftt = ftltime(*cur.sysUpTime, *cur.unix_secs, *cur.unix_nsecs, *cur.Last);
+    time_ftt = ftt.secs;
+    tm = localtime(&time_ftt);
+
+    printf("%-4.4d-%-2.2d-%-2.2d %-2.2d:%-2.2d:%-2.2d.%-3.3lu\t",
+      (int)tm->tm_year + 1900, (int)tm->tm_mon+1, (int)tm->tm_mday, (int)tm->tm_hour,
+      (int)tm->tm_min, (int)tm->tm_sec, (u_long)ftt.msecs);
+
+    /* other info */
+    fmt_ipv4(fmt_buf1, *cur.srcaddr, FMT_PAD_RIGHT);
+    fmt_ipv4(fmt_buf2, *cur.dstaddr, FMT_PAD_RIGHT);
+
+    printf("%u\t%s\t%u\t%u\t%s\t%u\t%u\t%d\t%d\t%lu\t%lu\t%04X\t%04X\n",
+           (unsigned int)*cur.input, fmt_buf1, (unsigned int)*cur.srcport, 
+           (unsigned int)*cur.output, fmt_buf2, (unsigned int)*cur.dstport,
+           (unsigned int)*cur.prot, 
+           (unsigned int)*cur.tcp_flags & 0x7,
+           (int)*cur.tos,
+           (u_long)*cur.dPkts, 
+           (u_long)*cur.dOctets,
+           (unsigned int)*cur.src_as,
+           (unsigned int)*cur.dst_as);
+
+    if (options & FT_OPT_NOBUF)
+      fflush(stdout);
+
+  } /* while */
+
+  return 0;
+
+} /* format25 */
+
+/*
+ * function: format26
+ *
+ * json formated version of format25.
+ *Format: 
+ *   [
+ *     {  "start": "YYYY-MM-DD HH:MM:SS.ms",
+          "end": "YYYY-MM-DD HH:MM:SS.ms",
+          "srcIf": "x",
+          "srcIPaddress": "x.x.x.x",
+          "srcPort": "x", 
+          "dstIf": "x", 
+          "dstIPaddress": "x.x.x.x",
+          "dstPort": "x",
+          "protocol": "x",
+          "flags": "x",
+          "tos": "x", 
+          "pkts": "x",
+          "octets": "x",
+          "srcAS": "xx",
+          "dstAS": "xx" 
+        },
+ *     ...
+ *  ]
+ */
+int format26(struct ftio *ftio, int options)
+{
+  struct tm *tm;
+  struct fttime ftt;
+  struct fts3rec_all cur;
+  struct fts3rec_offsets fo;
+  struct ftver ftv;
+  char fmt_buf1[64], fmt_buf2[64];
+  char *rec;
+  time_t time_ftt;
+
+  if (ftio_check_xfield(ftio, FT_XFIELD_DPKTS |
+    FT_XFIELD_DOCTETS | FT_XFIELD_FIRST | FT_XFIELD_LAST | FT_XFIELD_INPUT |
+    FT_XFIELD_OUTPUT | FT_XFIELD_SRCADDR | FT_XFIELD_DSTADDR |
+    FT_XFIELD_SRCPORT | FT_XFIELD_DSTPORT | FT_XFIELD_UNIX_SECS |
+    FT_XFIELD_UNIX_NSECS | FT_XFIELD_SYSUPTIME | FT_XFIELD_TCP_FLAGS |
+    FT_XFIELD_TOS| FT_XFIELD_PROT | FT_XFIELD_SRC_AS | FT_XFIELD_DST_AS)) {
+    fterr_warnx("Flow record missing required field for format.");
+    return -1;
+  }
+
+  ftio_get_ver(ftio, &ftv);
+  
+  fts3rec_compute_offsets(&fo, &ftv);
+
+  puts("[");
+
+  while ((rec = ftio_read(ftio))) {
+
+    cur.unix_secs = ((uint32_t*)(rec+fo.unix_secs));
+    cur.unix_nsecs = ((uint32_t*)(rec+fo.unix_nsecs));
+    cur.sysUpTime = ((uint32_t*)(rec+fo.sysUpTime));
+    cur.dOctets = ((uint32_t*)(rec+fo.dOctets));
+    cur.dPkts = ((uint32_t*)(rec+fo.dPkts));
+    cur.First = ((uint32_t*)(rec+fo.First));
+    cur.Last = ((uint32_t*)(rec+fo.Last));
+    cur.srcaddr = ((uint32_t*)(rec+fo.srcaddr));
+    cur.dstaddr = ((uint32_t*)(rec+fo.dstaddr));
+    cur.input = ((uint16_t*)(rec+fo.input));
+    cur.output = ((uint16_t*)(rec+fo.output));
+    cur.srcport = ((uint16_t*)(rec+fo.srcport));
+    cur.dstport = ((uint16_t*)(rec+fo.dstport));
+    cur.prot = ((uint8_t*)(rec+fo.prot));
+    cur.tcp_flags = ((uint8_t*)(rec+fo.tcp_flags));
+    cur.tos = ((uint8_t*)(rec+fo.tos));
+    cur.src_as = ((uint16_t*)(rec+fo.src_as));
+    cur.dst_as = ((uint16_t*)(rec+fo.dst_as));
+
+
+    ftt = ftltime(*cur.sysUpTime, *cur.unix_secs, *cur.unix_nsecs, *cur.First);
+    time_ftt = ftt.secs;
+    tm = localtime(&time_ftt);
+
+    printf("{ \"start\": \"%-4.4d-%-2.2d-%-2.2d %-2.2d:%-2.2d:%-2.2d.%-3.3lu\",",
+      (int)tm->tm_year + 1900, (int)tm->tm_mon+1, (int)tm->tm_mday, (int)tm->tm_hour,
+      (int)tm->tm_min, (int)tm->tm_sec, (u_long)ftt.msecs);
+
+    ftt = ftltime(*cur.sysUpTime, *cur.unix_secs, *cur.unix_nsecs, *cur.Last);
+    time_ftt = ftt.secs;
+    tm = localtime(&time_ftt);
+
+    printf(" \"end\": \"%-4.4d-%-2.2d-%-2.2d %-2.2d:%-2.2d:%-2.2d.%-3.3lu\",",
+      (int)tm->tm_year + 1900, (int)tm->tm_mon+1, (int)tm->tm_mday, (int)tm->tm_hour,
+      (int)tm->tm_min, (int)tm->tm_sec, (u_long)ftt.msecs);
+
+    /* other info */
+    fmt_ipv4(fmt_buf1, *cur.srcaddr, FMT_PAD_RIGHT);
+    fmt_ipv4(fmt_buf2, *cur.dstaddr, FMT_PAD_RIGHT);
+
+    printf(" \"srcIf\": \"%u\", \"srcIPaddress\": \"%s\", \"srcPort\": \"%u\", \"dstIf\": \"%u\", \"dstIPaddress\": \"%s\", \"dstPort\": \"%u\", \"protocol\": \"%u\", \"flags\": \"%d\", \"tos\": \"%d\", \"pkts\": \"%lu\", \"octets\": \"%lu\", \"srcAS\": \"%04X\", \"dstAS\": \"%04X\" },\n",
+           (unsigned int)*cur.input, fmt_buf1, (unsigned int)*cur.srcport, 
+           (unsigned int)*cur.output, fmt_buf2, (unsigned int)*cur.dstport,
+           (unsigned int)*cur.prot, 
+           (unsigned int)*cur.tcp_flags & 0x7,
+           (int)*cur.tos,
+           (u_long)*cur.dPkts, 
+           (u_long)*cur.dOctets,
+           (unsigned int)*cur.src_as,
+           (unsigned int)*cur.dst_as);
+
+    if (options & FT_OPT_NOBUF)
+      fflush(stdout);
+
+  } /* while */
+  puts("]");
+
+  return 0;
+
+} /* format26 */
 

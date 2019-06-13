@@ -10,6 +10,7 @@ lib/.deps/
 lib/.libs/
 lib/libft.la
 lib/ftconfig.h
+lib/ftconfig.h.in
 lib/getdate.c
 src/.deps/
 src/aclyacc.h
@@ -46,5 +47,3 @@ docs/Makefile
 utils/Makefile
 src/Makefile
 etc/cfg/
-lib/ftconfig.h.in
-lib/ftconfig.h

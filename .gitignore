@@ -47,3 +47,4 @@ docs/Makefile
 utils/Makefile
 src/Makefile
 etc/cfg/
+configure

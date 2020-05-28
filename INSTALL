@@ -2,11 +2,14 @@ COMPILING THE TOOLKIT
 ---------------------------
 
 To compile the toolkit, you'll first need to install zlib1.0.4 or greater
-tcp_wrappers 7.6, and gnu make
+tcp_wrappers 7.6, and gnu make 
 
-zlib -         ftp://ftp.freesoftware.com/pub/infozip/zlib/
-tcp_wrappers   ftp://ftp.win.tue.nl pub/security/tcp_wrappers_7.6.tar.gz
-gnu_make       ftp://ftp.gnu.org/pub/gnu/make/make-3.79.1.tar.gz
+zlib -         ftp://ftp.freesoftware.com/pub/infozip/zlib/ (apt install zlib1g-dev)
+tcp_wrappers   ftp://ftp.win.tue.nl pub/security/tcp_wrappers_7.6.tar.gz (apt install libwrap0 libwrap0-dev)
+gnu_make       ftp://ftp.gnu.org/pub/gnu/make/make-3.79.1.tar.gz (apt install buildtools autoconf)
+bison
+flex
+gawk
 
 Then
 
